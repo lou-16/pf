@@ -14,7 +14,7 @@ const MyInfoCard = () => {
         <Typewriter />
         
         {/* the github / profile pic box */}
-        <div className="w-full md:w-auto border border-white rounded-2xl h-64 md:h-96 items-center justify-center flex flex-col p-4">
+        <div className="w-full md:w-96 border border-white rounded-2xl min-h-[400px] md:min-h-[500px] flex flex-col p-6">
             <GitAndThings />
         </div>
 

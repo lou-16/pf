@@ -10,6 +10,7 @@ interface GitHubData {
   user: any;
   repos: any[];
   projectRepos: Record<string, any>;
+  events: any[];
   timestamp: number;
 }
 
@@ -56,9 +57,10 @@ export async function GET() {
       headers['Authorization'] = `token ${GITHUB_TOKEN}`;
     }
 
-    const [userResponse, reposResponse] = await Promise.all([
+    const [userResponse, reposResponse, eventsResponse] = await Promise.all([
       fetch(`https://api.github.com/users/${GITHUB_USERNAME}`, { headers }),
-      fetch(`https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=6`, { headers })
+      fetch(`https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=6`, { headers }),
+      fetch(`https://api.github.com/users/${GITHUB_USERNAME}/events/public?per_page=30`, { headers })
     ]);
 
     // Fetch project repos
@@ -75,11 +77,13 @@ export async function GET() {
     if (userResponse.ok && reposResponse.ok) {
       const user = await userResponse.json();
       const repos = await reposResponse.json();
+      const events = eventsResponse.ok ? await eventsResponse.json() : [];
       
       const data: GitHubData = {
         user,
         repos,
         projectRepos,
+        events,
         timestamp: Date.now()
       };
 
@@ -109,6 +113,7 @@ export async function GET() {
       },
       repos: [],
       projectRepos: {},
+      events: [],
       timestamp: Date.now(),
       fromFallback: true
     });
@@ -132,6 +137,7 @@ export async function GET() {
         public_repos: 20,
         followers: 5,
         following: 3,
+      events: [],
         html_url: 'https://github.com/lou-16'
       },
       repos: [],

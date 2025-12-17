@@ -28,6 +28,7 @@ export default function GitAndThings()
 {
     const [userData, setUserData] = useState<GitHubUser | null>(null)
     const [repos, setRepos] = useState<GitHubRepo[]>([])
+    const [activity, setActivity] = useState({ commits: 0, prs: 0, issues: 0 })
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
@@ -46,6 +47,13 @@ export default function GitAndThings()
                 setUserData(data.user)
                 setRepos(data.repos || [])
                 
+                // Calculate activity from events
+                const events = data.events || []
+                const commits = events.filter((e: any) => e.type === 'PushEvent').length
+                const prs = events.filter((e: any) => e.type === 'PullRequestEvent').length
+                const issues = events.filter((e: any) => e.type === 'IssuesEvent').length
+                setActivity({ commits, prs, issues })
+                
                 setLoading(false)
             } catch (err) {
                 console.error('GitHub fetch error:', err)
@@ -59,11 +67,21 @@ export default function GitAndThings()
 
     if (loading) {
         return (
-            <div className='flex items-center justify-start p-6'>
-                <div className="animate-pulse space-y-4">
-                    <div className="w-64 h-64 bg-gray-700 rounded-full" />
-                    <div className="h-6 bg-gray-700 rounded w-48" />
-                    <div className="h-4 bg-gray-700 rounded w-32" />
+            <div className='flex flex-col items-start gap-3 w-full max-w-xs'>
+                <div className="animate-pulse w-full space-y-3">
+                    {/* Profile Image skeleton */}
+                    <div className="w-full mb-2">
+                        <div className="w-full h-auto max-w-[200px] aspect-square mx-auto bg-gray-700 rounded-full" />
+                    </div>
+                    {/* Name skeleton */}
+                    <div className="h-5 bg-gray-700 rounded w-3/4" />
+                    {/* Username skeleton */}
+                    <div className="h-4 bg-gray-700 rounded w-1/2" />
+                    {/* Bio skeleton */}
+                    <div className="h-3 bg-gray-700 rounded w-full" />
+                    <div className="h-3 bg-gray-700 rounded w-5/6" />
+                    {/* Followers skeleton */}
+                    <div className="h-3 bg-gray-700 rounded w-2/3" />
                 </div>
             </div>
         )
@@ -117,6 +135,25 @@ export default function GitAndThings()
                             <span className="text-white font-semibold">{userData.following}</span>
                             <span className="text-gray-400 ml-1">following</span>
                         </a>
+                    </div>
+
+                    {/* Recent Activity */}
+                    <div className="mt-4 pt-3 border-t border-gray-700">
+                        <p className="text-xs text-gray-400 mb-2">Recent Activity (30 days)</p>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="bg-gray-800/50 rounded-lg p-2">
+                                <div className="text-lg font-bold text-green-400">{activity.commits}</div>
+                                <div className="text-xs text-gray-400">Commits</div>
+                            </div>
+                            <div className="bg-gray-800/50 rounded-lg p-2">
+                                <div className="text-lg font-bold text-purple-400">{activity.prs}</div>
+                                <div className="text-xs text-gray-400">PRs</div>
+                            </div>
+                            <div className="bg-gray-800/50 rounded-lg p-2">
+                                <div className="text-lg font-bold text-blue-400">{activity.issues}</div>
+                                <div className="text-xs text-gray-400">Issues</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
