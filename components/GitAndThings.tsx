@@ -31,27 +31,24 @@ export default function GitAndThings()
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    const GITHUB_USERNAME = 'lou-16'
-
     useEffect(() => {
         const fetchGitHubData = async () => {
             try {
                 setLoading(true)
                 
-                // Fetch user data
-                const userResponse = await fetch(`https://api.github.com/users/${GITHUB_USERNAME}`)
-                if (!userResponse.ok) throw new Error('Failed to fetch user data')
-                const user = await userResponse.json()
-                setUserData(user)
-
-                // Fetch repositories
-                const reposResponse = await fetch(`https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=6`)
-                if (!reposResponse.ok) throw new Error('Failed to fetch repositories')
-                const reposData = await reposResponse.json()
-                setRepos(reposData)
-
+                // Fetch from our API route which handles caching
+                const response = await fetch('/api/github')
+                if (!response.ok) {
+                    throw new Error('Failed to fetch GitHub data')
+                }
+                
+                const data = await response.json()
+                setUserData(data.user)
+                setRepos(data.repos || [])
+                
                 setLoading(false)
             } catch (err) {
+                console.error('GitHub fetch error:', err)
                 setError(err instanceof Error ? err.message : 'An error occurred')
                 setLoading(false)
             }
@@ -73,34 +70,34 @@ export default function GitAndThings()
     }
 
     return (
-        <div className='flex flex-col items-start gap-4 w-full max-w-xs p-4'>
+        <div className='flex flex-col items-start gap-3 w-full max-w-xs'>
             {/* Profile Image - circular like GitHub */}
-            <div className="w-full mb-4">
+            <div className="w-full mb-2">
                 <Image 
                     src={userData?.avatar_url || "/IMG_0133.jpg"}
                     alt={userData?.name || 'Profile picture'} 
-                    width={296}
-                    height={296}  
-                    className='rounded-full w-full h-auto border-2 border-gray-700' 
+                    width={200}
+                    height={200}  
+                    className='rounded-full w-full h-auto max-w-[200px] mx-auto border-2 border-gray-700' 
                 />
             </div>
 
             {/* GitHub Profile Info */}
             {userData && (
-                <div className="flex flex-col gap-3 text-white w-full">
+                <div className="flex flex-col gap-2 text-white w-full">
                     {/* Name and Username */}
                     <div>
-                        <h1 className="font-semibold text-2xl">{userData.name}</h1>
-                        <p className="text-xl text-gray-400 font-light">{userData.login}</p>
+                        <h1 className="font-semibold text-lg">{userData.name}</h1>
+                        <p className="text-base text-gray-400 font-light">{userData.login}</p>
                     </div>
                     
                     {/* Bio */}
                     {userData.bio && (
-                        <p className="text-base leading-relaxed">{userData.bio}</p>
+                        <p className="text-sm leading-relaxed">{userData.bio}</p>
                     )}
 
                     {/* Followers/Following */}
-                    <div className="flex gap-4 text-sm items-center">
+                    <div className="flex gap-3 text-xs items-center">
                         <a 
                             href={`${userData.html_url}?tab=followers`}
                             target="_blank"

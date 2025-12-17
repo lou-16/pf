@@ -27,18 +27,12 @@ export default function ProjectsSection() {
   useEffect(() => {
     const fetchRepoData = async () => {
       try {
-        const data: Record<string, GitHubRepo> = {};
-        
-        await Promise.all(
-          projects.map(async (project) => {
-            const response = await fetch(`https://api.github.com/repos/${project.repo}`);
-            if (response.ok) {
-              data[project.repo] = await response.json();
-            }
-          })
-        );
-        
-        setRepoData(data);
+        // Fetch from our cached API route
+        const response = await fetch('/api/github');
+        if (response.ok) {
+          const data = await response.json();
+          setRepoData(data.projectRepos || {});
+        }
         setLoading(false);
       } catch (error) {
         console.error("Error fetching repo data:", error);

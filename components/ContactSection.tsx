@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 
 export default function ContactSection() {
-  const email = "your.email@example.com"; // TODO: Replace with your actual email
+  const email = "mail@lou-16.com"; 
 
   return (
     <section
