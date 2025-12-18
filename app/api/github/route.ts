@@ -1,10 +1,7 @@
-import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import { projects } from '@/content/projects';
+import { NextResponse } from "next/server";
+import { projects } from "@/content/projects";
 
-const CACHE_FILE = path.join(process.cwd(), 'data', 'github-cache.json');
-const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
+export const revalidate = 3600; // 1 hour ISR (Vercel global cache)
 
 interface GitHubData {
   user: any;
@@ -14,136 +11,87 @@ interface GitHubData {
   timestamp: number;
 }
 
-async function ensureCacheDir() {
-  const dir = path.dirname(CACHE_FILE);
-  try {
-    await fs.access(dir);
-  } catch {
-    await fs.mkdir(dir, { recursive: true });
-  }
-}
-
-async function readCache(): Promise<GitHubData | null> {
-  try {
-    const data = await fs.readFile(CACHE_FILE, 'utf-8');
-    const parsed = JSON.parse(data);
-    
-    // Check if cache is still valid
-    if (Date.now() - parsed.timestamp < CACHE_DURATION) {
-      return parsed;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-async function writeCache(data: GitHubData) {
-  await ensureCacheDir();
-  await fs.writeFile(CACHE_FILE, JSON.stringify(data, null, 2));
-}
-
 export async function GET() {
-  const GITHUB_USERNAME = 'lou-16';
-  const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+  const USERNAME = "lou-16";
+  const TOKEN = process.env.GITHUB_TOKEN;
+
+  const headers: HeadersInit = {
+    Accept: "application/vnd.github+json",
+    ...(TOKEN && { Authorization: `Bearer ${TOKEN}` }),
+  };
 
   try {
-    // Try to fetch from GitHub
-    const headers: HeadersInit = {
-      'Accept': 'application/vnd.github.v3+json'
-    };
-    
-    if (GITHUB_TOKEN) {
-      headers['Authorization'] = `token ${GITHUB_TOKEN}`;
-    }
-
-    const [userResponse, reposResponse, eventsResponse] = await Promise.all([
-      fetch(`https://api.github.com/users/${GITHUB_USERNAME}`, { headers }),
-      fetch(`https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=6`, { headers }),
-      fetch(`https://api.github.com/users/${GITHUB_USERNAME}/events/public?per_page=30`, { headers })
+    const [userRes, reposRes, eventsRes] = await Promise.all([
+      fetch(`https://api.github.com/users/${USERNAME}`, {
+        headers,
+        next: { revalidate: 3600 },
+      }),
+      fetch(
+        `https://api.github.com/users/${USERNAME}/repos?sort=updated&per_page=100`,
+        {
+          headers,
+          next: { revalidate: 3600 },
+        }
+      ),
+      fetch(
+        `https://api.github.com/users/${USERNAME}/events/public?per_page=30`,
+        {
+          headers,
+          next: { revalidate: 3600 },
+        }
+      ),
     ]);
 
-    // Fetch project repos
-    const projectRepoPromises = projects.map(project =>
-      fetch(`https://api.github.com/repos/${project.repo}`, { headers })
-        .then(res => res.ok ? res.json() : null)
-        .then(data => ({ [project.repo]: data }))
-        .catch(() => ({ [project.repo]: null }))
+    if (!userRes.ok || !reposRes.ok) {
+      throw new Error("GitHub API request failed");
+    }
+
+    const user = await userRes.json();
+    const allRepos = await reposRes.json();
+    const events = eventsRes.ok ? await eventsRes.json() : [];
+
+    // Only expose recent repos (same as before)
+    const repos = allRepos.slice(0, 6);
+
+    // Build repo lookup table
+    const repoMap = Object.fromEntries(
+      allRepos.map((r: any) => [r.full_name, r])
     );
-    
-    const projectRepoResults = await Promise.all(projectRepoPromises);
-    const projectRepos = Object.assign({}, ...projectRepoResults);
 
-    if (userResponse.ok && reposResponse.ok) {
-      const user = await userResponse.json();
-      const repos = await reposResponse.json();
-      const events = eventsResponse.ok ? await eventsResponse.json() : [];
-      
-      const data: GitHubData = {
-        user,
-        repos,
-        projectRepos,
-        events,
-        timestamp: Date.now()
-      };
+    // Resolve project repos locally (no extra GitHub calls)
+    const projectRepos = Object.fromEntries(
+      projects.map((p) => [p.repo, repoMap[p.repo] ?? null])
+    );
 
-      // Cache the successful response
-      await writeCache(data);
+    const data: GitHubData = {
+      user,
+      repos,
+      projectRepos,
+      events,
+      timestamp: Date.now(),
+    };
 
-      return NextResponse.json(data);
-    }
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error("GitHub API error:", err);
 
-    // If rate limited or error, try to use cache
-    const cached = await readCache();
-    if (cached) {
-      return NextResponse.json({ ...cached, fromCache: true });
-    }
-
-    // Last resort: return fallback data
+    // Graceful fallback (never breaks the UI)
     return NextResponse.json({
       user: {
-        login: 'lou-16',
-        avatar_url: '/IMG_0133.jpg',
-        name: 'Gurnoor Singh',
-        bio: '',
+        login: "lou-16",
+        avatar_url: "/IMG_0133.jpg",
+        name: "Gurnoor Singh",
+        bio: "",
         public_repos: 20,
         followers: 5,
         following: 3,
-        html_url: 'https://github.com/lou-16'
+        html_url: "https://github.com/lou-16",
       },
       repos: [],
       projectRepos: {},
       events: [],
       timestamp: Date.now(),
-      fromFallback: true
-    });
-
-  } catch (error) {
-    console.error('GitHub API error:', error);
-
-    // Try cache on any error
-    const cached = await readCache();
-    if (cached) {
-      return NextResponse.json({ ...cached, fromCache: true });
-    }
-
-    // Fallback data
-    return NextResponse.json({
-      user: {
-        login: 'lou-16',
-        avatar_url: '/IMG_0133.jpg',
-        name: 'Gurnoor Singh',
-        bio: '',
-        public_repos: 20,
-        followers: 5,
-        following: 3,
-      events: [],
-        html_url: 'https://github.com/lou-16'
-      },
-      repos: [],
-      projectRepos: {},
-      timestamp: Date.now(),
-      fromFallback: true
+      fromFallback: true,
     });
   }
 }
